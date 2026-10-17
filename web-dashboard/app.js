@@ -55,8 +55,9 @@ function placeLabel(place) {
 }
 
 /* ---------- 데이터 파싱 ---------- */
-function parseDocData(snapshot, flow, existing) {
-  const raw = snapshot[SCHEMA.DATA];
+function parseDocData(snapshotDoc, existing) {
+  // modular SDK: 필드 접근은 snapshot.data() 맵으로만 가능하다 (브래킷 접근은 undefined)
+  const raw = snapshotDoc?.data?.()?.[SCHEMA.DATA];
   if (typeof raw !== "string") return existing ?? null;
   try { return JSON.parse(raw); } catch { return existing ?? null; }
 }
@@ -117,8 +118,8 @@ function startSync(code) {
     state.unsub.push(onSnapshot(q, (sn) => {
       const items = [];
       sn.forEach((d) => {
-        const parsed = parseDocData(d, key, null);
-        if (parsed) items.push({ ...parsed, _ms: d[SCHEMA.TIMESTAMP_MILLIS] ?? parsed.timestampMillis ?? 0 });
+        const parsed = parseDocData(d, null);
+        if (parsed) items.push({ ...parsed, _ms: d.data()?.[SCHEMA.TIMESTAMP_MILLIS] ?? parsed.timestampMillis ?? 0 });
       });
       state[holder] = items;
       render();

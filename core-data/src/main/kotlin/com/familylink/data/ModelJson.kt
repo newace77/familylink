@@ -201,7 +201,10 @@ object ModelJson {
         title = json.optString("title"),
         message = json.optString("message"),
         timestampMillis = json.optLong("timestampMillis", System.currentTimeMillis()),
-        placeName = json.optString("placeName", "").takeIf { it.isNotBlank() },
+        // AOSP org.json은 JSONObject.NULL을 optString으로 꺼내면 "null" 문자열이 된다
+        // (JSON.toString → String.valueOf). isNull 선검사 필수.
+        placeName = if (json.isNull("placeName")) null else
+            json.optString("placeName", "").takeIf { it.isNotBlank() },
         milestoneMinutes = json.optInt("milestoneMinutes", -1).takeIf { it > 0 },
         isAcknowledged = json.optBoolean("isAcknowledged", false)
     )
@@ -235,7 +238,8 @@ object ModelJson {
         title = json.optString("title"),
         urlOrQuery = json.optString("urlOrQuery"),
         durationSeconds = json.optInt("durationSeconds", 0),
-        placeName = json.optString("placeName", "").takeIf { it.isNotBlank() },
+        placeName = if (json.isNull("placeName")) null else
+            json.optString("placeName", "").takeIf { it.isNotBlank() },
         latitude = if (json.isNull("latitude")) null else json.optDouble("latitude"),
         longitude = if (json.isNull("longitude")) null else json.optDouble("longitude")
     )

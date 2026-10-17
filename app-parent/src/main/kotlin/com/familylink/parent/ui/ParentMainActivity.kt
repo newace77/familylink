@@ -116,10 +116,18 @@ fun ParentMainScreen(
     var currentTabIndex by remember { mutableIntStateOf(0) }
 
     // 새 alert 도착 → 시스템 알림 자동 라우팅 (마지막 처리 alertId 추적)
+    // 첫 구성에서 이미 존재하던(alert 시드·재시작 전 알림)은 포스팅하지 않는다 — 재시작마다
+    // 데모 시드 알림이 다시 울리는 것을 막는다.
     var lastRoutedAlertId by remember { mutableStateOf<String?>(null) }
+    var alertRoutingSeeded by remember { mutableStateOf(false) }
     LaunchedEffect(alerts) {
-        val newest = alerts.firstOrNull()
-        if (newest != null && newest.alertId != lastRoutedAlertId) {
+        val newest = alerts.firstOrNull() ?: return@LaunchedEffect
+        if (!alertRoutingSeeded) {
+            alertRoutingSeeded = true
+            lastRoutedAlertId = newest.alertId
+            return@LaunchedEffect
+        }
+        if (newest.alertId != lastRoutedAlertId) {
             lastRoutedAlertId = newest.alertId
             onPostSystemNotification(newest)
         }

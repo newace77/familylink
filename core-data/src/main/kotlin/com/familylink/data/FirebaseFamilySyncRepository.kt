@@ -70,15 +70,24 @@ class FirebaseFamilySyncRepository(
     override val lastCreatedCode: StateFlow<String?> = _lastCreatedCode.asStateFlow()
 
     private var familyCode: String? = pairingStore.savedCode()
+    private var syncedCode: String? = null
     private var lastNotifiedMilestoneStep: Int =
         _deviceHealth.value.totalUsedMinutesToday / _policy.value.alertIntervalMinutes.coerceAtLeast(1)
 
     private val listeners = mutableListOf<ListenerRegistration>()
 
+    init {
+        // 저장된 코드가 있으면(부모가 코드 생성 후 재시작, 또는 자녀가 연동 후 재시작)
+        // 리스너를 즉시 다는데 — 그렇지 않으면 부모 앱은 영원히 리스너 없이 씨앗 데이터만 본다.
+        pairingStore.savedCode()?.let { startSync(it) }
+    }
+
     // ---------- 라이프사이클 ----------
 
     /** 페어링 코드가 확정된 뒤 호출: families/{code} 실시간 구독을 연다. */
     fun startSync(familyCode: String) {
+        if (syncedCode == familyCode && listeners.isNotEmpty()) return
+        syncedCode = familyCode
         this.familyCode = familyCode
         pairingStore.save(familyCode)
         val rootPath = "${FirestoreSchema.FAMILIES}/$familyCode"
@@ -316,8 +325,12 @@ class FirebaseFamilySyncRepository(
             current.map { if (it.alertId == alertId) it.copy(isAcknowledged = true) else it }
         }
         val code = familyCode ?: return
+        // data 필드 JSON의 isAcknowledged를 갱신해야 다른 기기·웹 대시보드에도 반영된다.
+        val updatedJson = _alerts.value.firstOrNull { it.alertId == alertId }
+            ?.let { ModelJson.alertToJson(it).toString() }
+            ?: return
         db.document("${FirestoreSchema.FAMILIES}/$code/${FirestoreSchema.ALERTS}/$alertId")
-            .update(mapOf("isAcknowledged" to true))
+            .update(mapOf(FirestoreSchema.DATA to updatedJson))
     }
 
     /** 결정적 문서 id = 데이터 id: 리스너 중복 제거와 acknowledge 경로를 단순화한다. */
@@ -382,6 +395,8 @@ class FirebaseFamilySyncRepository(
         familyCode = code
         _lastCreatedCode.value = code
         _pairingState.value = PairingState.WAITING
+        // 부모가 스스로 리스너를 열어야 PAIRED/LINKED 전환과 정책·기록 실시간 반영이 시작된다.
+        startSync(code)
         return code
     }
 
