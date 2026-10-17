@@ -107,7 +107,7 @@ families/{familyCode}          ← familyCode = 6자리 숫자 문자열
 
 - Firestore SDK 오프라인 캐시: 끊기면 큐잉 → 재접속 시 자동 전송
 - 보조 로컬 폴백: 기존 JSON 정책 저장 유지. Firebase 연결 실패 시 마지막 정책으로
-  동작 (자녀 폰이 "잠금 안 풀이" 방향이 안전)
+  동작 (자녀 폰이 "잠금 안 풀림" 방향이 안전)
 - 모든 리스너/네트워크 호출은 `runCatching`으로 감싸 크래시 방지
 
 ### 알림 경로
@@ -194,7 +194,7 @@ Firebase 초기화 실패 시에도 P1이 데모 빌드를 보호하므로 순�
 2. 자녀가 설정 변경 시도 → 부모 폰 시스템 알림 도착
 3. 자녀가 크롬에서 웹페이지 열람 → 부모 앱 타임라인과 웹 대시보드에 표시
 4. 아이폰 사파리에서 웹 대시보드 URL 접속 + 코드 입력 → 현황 실시간 확인
-5. `./gradlew testDebugUnitTest assembleDebug` 전통과 (json 파일 유무 무관)
+5. `./gradlew testDebugUnitTest assembleDebug` 전부 통과 (json 파일 유무 무관)
 
 ## 13. 리스크
 
