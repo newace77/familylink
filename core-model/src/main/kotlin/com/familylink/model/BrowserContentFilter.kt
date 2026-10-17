@@ -1,5 +1,7 @@
 package com.familylink.model
 
+import java.util.UUID
+
 object BrowserContentFilter {
     private const val DEBOUNCE_WINDOW_MILLIS = 3_000L
 
@@ -46,7 +48,7 @@ object BrowserContentFilter {
                 return null
             }
             return WebContentLog(
-                id = "yt-${nowMillis}",
+                id = UUID.randomUUID().toString(),
                 timestampMillis = nowMillis,
                 sourcePackage = packageName,
                 browserOrAppName = "YouTube",
@@ -88,7 +90,7 @@ object BrowserContentFilter {
         }
 
         return WebContentLog(
-            id = "web-${nowMillis}",
+            id = UUID.randomUUID().toString(),
             timestampMillis = nowMillis,
             sourcePackage = packageName,
             browserOrAppName = browserName,

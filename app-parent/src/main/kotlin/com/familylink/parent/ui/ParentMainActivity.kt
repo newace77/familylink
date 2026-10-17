@@ -1,8 +1,12 @@
 package com.familylink.parent.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,11 +26,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.familylink.data.FamilyRepositoryProvider
 import com.familylink.model.ControlPolicy
 import com.familylink.model.DeviceHealth
+import com.familylink.model.ParentAlert
 import com.familylink.parent.notification.ParentNotificationHelper
 import com.familylink.parent.ui.tabs.AlertsAndSafeZonesTab
 import com.familylink.parent.ui.tabs.LocationUsageMapTab
@@ -48,8 +56,23 @@ class ParentMainActivity : ComponentActivity() {
         ParentDashboardController(FamilyRepositoryProvider.getInstance(applicationContext))
     }
 
+    /** Android 13+ 알림 런타임 권한. 진입 1회만 요청한다. */
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    private fun requestNotificationPermissionOnceIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestNotificationPermissionOnceIfNeeded()
         setContent {
             MaterialTheme(
                 colorScheme = lightColorScheme(
@@ -85,6 +108,16 @@ fun ParentMainScreen(
     val safeZones by controller.safeZones.collectAsState()
 
     var currentTabIndex by remember { mutableIntStateOf(0) }
+
+    // 새 alert 도착 → 시스템 알림 자동 라우팅 (마지막 처리 alertId 추적)
+    var lastRoutedAlertId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(alerts) {
+        val newest = alerts.firstOrNull()
+        if (newest != null && newest.alertId != lastRoutedAlertId) {
+            lastRoutedAlertId = newest.alertId
+            onPostSystemNotification(newest)
+        }
+    }
 
     Scaffold(
         topBar = {
