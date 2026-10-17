@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1d4ed8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FamilyLink" />
+  <link rel="manifest" href="manifest.json" />
+  <title>FamilyLink Plus · 열람 대시보드</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+      background: #f1f5f9; color: #0f172a; min-height: 100vh;
+    }
+    header {
+      background: #1e3a8a; color: #fff; padding: 14px 16px;
+      padding-top: max(14px, env(safe-area-inset-top));
+    }
+    header h1 { font-size: 17px; font-weight: 800; }
+    header .sub { font-size: 12px; opacity: .85; margin-top: 2px; }
+    .summary {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      background: #0f172a; color: #cbd5e1; font-size: 12px; padding: 8px 16px;
+    }
+    .badge { padding: 2px 8px; border-radius: 10px; background: #1d4ed8; color: #fff; font-weight: 700; }
+    .badge.locked { background: #dc2626; }
+    main { padding: 14px; display: grid; gap: 14px; max-width: 720px; margin: 0 auto; }
+    section.card {
+      background: #fff; border-radius: 14px; padding: 14px;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
+    }
+    section.card h2 { font-size: 14px; font-weight: 800; margin-bottom: 10px; }
+    .item { padding: 10px 0; border-top: 1px solid #e2e8f0; font-size: 13px; }
+    .item:first-of-type { border-top: none; }
+    .item .title { font-weight: 700; }
+    .item .meta { color: #64748b; font-size: 12px; margin-top: 2px; }
+    .item .body { color: #334155; margin-top: 2px; }
+    .pill { display: inline-block; font-size: 11px; background: #e2e8f0; border-radius: 8px; padding: 1px 8px; margin-right: 4px; }
+    .empty { color: #94a3b8; font-size: 13px; }
+    #gate {
+      position: fixed; inset: 0; background: #0f172a; color: #fff;
+      display: flex; align-items: center; justify-content: center; z-index: 10;
+    }
+    #gate .box { text-align: center; padding: 20px; }
+    #gate input {
+      font-size: 28px; letter-spacing: 8px; text-align: center; width: 220px;
+      padding: 10px; border-radius: 12px; border: 2px solid #1d4ed8; margin: 16px 0;
+      font-family: ui-monospace, Menlo, monospace; font-weight: 800;
+    }
+    #gate button {
+      display: block; width: 220px; margin: 0 auto; padding: 12px; border: none;
+      border-radius: 12px; background: #2563eb; color: #fff; font-size: 15px; font-weight: 800;
+    }
+    #gate .msg { color: #f87171; font-size: 12px; min-height: 16px; }
+    #search {
+      width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid #cbd5e1;
+      font-size: 14px; margin-bottom: 10px;
+    }
+    #codeRow { text-align: right; font-size: 11px; color: #cbd5e1; }
+    #codeRow button { background: none; border: none; color: #93c5fd; text-decoration: underline; cursor: pointer; }
+    .muted-help { color: #64748b; font-size: 12px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>FamilyLink Plus · 열람 대시보드</h1>
+    <div class="sub" id="childLine">연결 대기 중…</div>
+  </header>
+  <div class="summary" id="summary">
+    <span class="empty">(요약 없음)</span>
+  </div>
+
+  <main>
+    <div id="codeRow">코드 <button id="changeCodeBtn" type="button">변경</button></div>
+
+    <section class="card" id="sec-stay">
+      <h2>📍 체류지 타임라인</h2>
+      <div id="stayList"><span class="empty">(아직 기록 없음)</span></div>
+    </section>
+
+    <section class="card" id="sec-web">
+      <h2>🌐 웹·유튜브 기록</h2>
+      <input id="search" type="search" placeholder="제목·주소·장소 검색" />
+      <div id="webList"><span class="empty">(아직 기록 없음)</span></div>
+    </section>
+
+    <section class="card" id="sec-alerts">
+      <h2>🔔 알림 히스토리</h2>
+      <div id="alertList"><span class="empty">(아직 알림 없음)</span></div>
+    </section>
+
+    <section class="card">
+      <h2>ℹ️ 이 도시보드는?</h2>
+      <p class="muted-help">
+        아이 사용현황을 <b>열람 전용</b>으로 보여줍니다. 제어(잠금·보너스 등)는
+        부모 앱에서 하세요. 실시간이며 브라우저를 닫아도 새로고침하면 갱신됩니다.
+      </p>
+    </section>
+  </main>
+
+  <div id="gate" hidden>
+    <div class="box">
+      <div style="font-size:44px">👨‍👩‍👧</div>
+      <h1 style="font-size:20px;font-weight:800">FamilyLink Plus 열람</h1>
+      <p style="font-size:13px;color:#94a3b8;margin-top:6px">부모 앱의 6자리 가족 코드 입력</p>
+      <input id="codeInput" inputmode="numeric" maxlength="6" autocomplete="off" type="tel" />
+      <button id="connectBtn" type="button">대시보드 열기</button>
+      <div class="msg" id="gateMsg"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
