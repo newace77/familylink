@@ -26,6 +26,9 @@ import kotlin.random.Random
  */
 enum class PairingState { NOT_PAIRED, WAITING, LINKED }
 
+/** 저장소 종류: FIREBASE = Firestore 실시간 동기화, LOCAL = 단일 기기 데모 */
+enum class RepositoryKind { FIREBASE, LOCAL }
+
 interface FamilySyncRepository {
     val policy: StateFlow<ControlPolicy>
     val deviceHealth: StateFlow<DeviceHealth>
@@ -64,6 +67,9 @@ interface FamilySyncRepository {
 
     /** 현재 연동 진행 단계. */
     val pairingState: StateFlow<PairingState>
+
+    /** 마지막으로 생성된 6자리 가족 코드 (createFamilyCode 성공 시 설정). LINKED 후에는 무의미. */
+    val lastCreatedCode: StateFlow<String?>
 }
 
 class LocalFamilySyncRepository(
@@ -92,8 +98,12 @@ class LocalFamilySyncRepository(
     private val _pairingState = MutableStateFlow(PairingState.NOT_PAIRED)
     override val pairingState: StateFlow<PairingState> = _pairingState.asStateFlow()
 
+    private val _lastCreatedCode = MutableStateFlow<String?>(null)
+    override val lastCreatedCode: StateFlow<String?> = _lastCreatedCode.asStateFlow()
+
     override suspend fun createFamilyCode(): String {
         val code = Random.nextInt(100_000, 1_000_000).toString()
+        _lastCreatedCode.value = code
         _pairingState.value = PairingState.WAITING
         return code
     }
@@ -331,11 +341,31 @@ object FamilyRepositoryProvider {
     @Volatile
     private var instance: FamilySyncRepository? = null
 
+    /**
+     * Firebase 초기화 여부만으로 저장소 종류를 결정하는 순수 함수 (JVM 테스트 대상).
+     * 페어링 유무는 선택 기준이 아니다 — 초기화만 되어 있으면 Firebase repo가
+     * NOT_PAIRED부터 이어받는다 (Review Focus 5).
+     */
+    fun selectRepositoryKind(firebaseInitialized: Boolean): RepositoryKind =
+        if (firebaseInitialized) RepositoryKind.FIREBASE else RepositoryKind.LOCAL
+
     fun getInstance(context: Context? = null): FamilySyncRepository {
         return instance ?: synchronized(this) {
-            instance ?: LocalFamilySyncRepository(
-                storageFile = context?.filesDir?.let { File(it, "familylink_policy_state.json") }
-            ).also { instance = it }
+            instance ?: run {
+                val firebaseInitialized = context != null && runCatching {
+                    com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()
+                }.getOrDefault(false)
+                val repository = when (selectRepositoryKind(firebaseInitialized)) {
+                    RepositoryKind.FIREBASE -> FirebaseFamilySyncRepository(
+                        db = com.google.firebase.firestore.FirebaseFirestore.getInstance(),
+                        pairingStore = FamilyPairingStore(requireNotNull(context) { "Firebase 경로에는 Context가 필요하다" })
+                    )
+                    RepositoryKind.LOCAL -> LocalFamilySyncRepository(
+                        storageFile = context?.filesDir?.let { File(it, "familylink_policy_state.json") }
+                    )
+                }
+                repository.also { instance = it }
+            }
         }
     }
 }

@@ -33,7 +33,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.familylink.data.FamilyRepositoryProvider
+import com.familylink.data.PairingState
 import com.familylink.model.ControlPolicy
 import com.familylink.model.DeviceHealth
 import com.familylink.model.ParentAlert
@@ -106,6 +109,9 @@ fun ParentMainScreen(
     val webLogs by controller.webLogs.collectAsState()
     val alerts by controller.alerts.collectAsState()
     val safeZones by controller.safeZones.collectAsState()
+    val pairingState by controller.pairingState.collectAsState()
+    val lastCreatedCode by controller.lastCreatedCode.collectAsState()
+    val scope = rememberCoroutineScope()
 
     var currentTabIndex by remember { mutableIntStateOf(0) }
 
@@ -141,6 +147,11 @@ fun ParentMainScreen(
                         containerColor = Color(0xFF1E3A8A),
                         titleContentColor = Color.White
                     )
+                )
+                PairingBanner(
+                    state = pairingState,
+                    lastCreatedCode = lastCreatedCode,
+                    onCreateCode = { scope.launch { controller.createFamilyCode() } }
                 )
                 ChildDeviceStatusBanner(policy = policy, health = health)
             }

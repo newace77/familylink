@@ -67,7 +67,7 @@ class FirebaseFamilySyncRepository(
     private val _lastCreatedCode = MutableStateFlow<String?>(null)
 
     /** 부모 UI가 방금 생성한 코드 표시용. createFamilyCode 성공 시 설정. */
-    val lastCreatedCode: StateFlow<String?> = _lastCreatedCode.asStateFlow()
+    override val lastCreatedCode: StateFlow<String?> = _lastCreatedCode.asStateFlow()
 
     private var familyCode: String? = pairingStore.savedCode()
     private var lastNotifiedMilestoneStep: Int =
