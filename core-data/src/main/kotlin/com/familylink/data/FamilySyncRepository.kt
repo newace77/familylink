@@ -18,6 +18,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import org.json.JSONObject
 import java.io.File
+import kotlin.random.Random
+
+/**
+ * 부모 앱과 자녀 앱의 연동 진행 단계.
+ * NOT_PAIRED: 아직 연동 없음 → WAITING: 부모가 코드 생성(자녀 입력 대기) → LINKED: 양쪽 연동 성공
+ */
+enum class PairingState { NOT_PAIRED, WAITING, LINKED }
 
 interface FamilySyncRepository {
     val policy: StateFlow<ControlPolicy>
@@ -48,6 +55,15 @@ interface FamilySyncRepository {
     fun emitAlert(alert: ParentAlert)
     fun acknowledgeAlert(alertId: String)
     fun updateDeviceHealth(transform: (DeviceHealth) -> DeviceHealth)
+
+    /** 부모 앱: 6자리 가족 코드를 생성하고 WAITING 상태로 진입한다. */
+    suspend fun createFamilyCode(): String
+
+    /** 자녀 앱: 부모가 알려준 6자리 코드로 연동을 시도한다. 유효 코드면 true + LINKED. */
+    suspend fun linkFamilyCode(code: String): Boolean
+
+    /** 현재 연동 진행 단계. */
+    val pairingState: StateFlow<PairingState>
 }
 
 class LocalFamilySyncRepository(
@@ -71,6 +87,23 @@ class LocalFamilySyncRepository(
 
     private val _safeZones = MutableStateFlow(DemoScenarioSeed.defaultSafeZones())
     override val safeZones: StateFlow<List<SafeZone>> = _safeZones.asStateFlow()
+
+    // 데모 구현 Stub: 로컬 흐름용 1인 가족 데모 규칙. 실제 Firestore 규칙은 Task 4가 교체한다.
+    private val _pairingState = MutableStateFlow(PairingState.NOT_PAIRED)
+    override val pairingState: StateFlow<PairingState> = _pairingState.asStateFlow()
+
+    override suspend fun createFamilyCode(): String {
+        val code = Random.nextInt(100_000, 1_000_000).toString()
+        _pairingState.value = PairingState.WAITING
+        return code
+    }
+
+    override suspend fun linkFamilyCode(code: String): Boolean {
+        val valid = code.length == 6 && code.all { it.isDigit() }
+        if (!valid) return false
+        _pairingState.value = PairingState.LINKED
+        return true
+    }
 
     private var lastNotifiedMilestoneStep: Int =
         _deviceHealth.value.totalUsedMinutesToday / _policy.value.alertIntervalMinutes.coerceAtLeast(1)
