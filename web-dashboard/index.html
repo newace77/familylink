@@ -113,5 +113,22 @@
   </div>
 
   <script type="module" src="./app.js"></script>
+  <script>
+    // 진단 계측: app.js(모듈)가 실행되지 못한 환경(구형 브라우저·인앱 뷰어·차단)에서
+    // "버튼 무반응"이 아니라 원인이 화면에 보이도록 한다.
+    window.addEventListener("error", function (e) {
+      var msg = document.getElementById("gateMsg");
+      if (msg && !window.__flBooted) {
+        msg.textContent = "오류: " + (e.message || "알 수 없는 오류");
+      }
+    });
+    setTimeout(function () {
+      if (window.__flBooted) return;
+      var gate = document.getElementById("gate");
+      var msg = document.getElementById("gateMsg");
+      if (gate) gate.hidden = false;
+      if (msg) msg.textContent = "스크립트 로드 실패 — 인터넷 연결을 확인하고 새로고침해 주세요. (브라우저가 아주 오래됐거나 인앱 브라우저일 때 이 메시지가 뜹니다)";
+    }, 4000);
+  </script>
 </body>
 </html>

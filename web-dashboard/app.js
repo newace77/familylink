@@ -27,6 +27,14 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const CODE_STORAGE_KEY = "familylink_family_code";
+window.__flBooted = true; // 계측: 모듈 파싱 실패 시 이 플래그가 없어 진단 메시지가 뜬다
+
+/** 프라이빗 모드·스토리지 차단 환경에서도 죽지 않는 localStorage 래퍼 */
+const safeStorage = {
+  get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+  set(key, value) { try { localStorage.setItem(key, value); } catch {} },
+  remove(key) { try { localStorage.removeItem(key); } catch {} }
+};
 const SCHEMA = {
   FAMILIES: "families", ALERTS: "alerts", WEB_LOGS: "webLogs",
   STAY_SESSIONS: "staySessions", DATA: "data", TIMESTAMP_MILLIS: "timestampMillis",
@@ -254,14 +262,14 @@ function enterDashboard(code) {
     $("gateMsg").textContent = "6자리 숫자를 입력해 주세요";
     return;
   }
-  localStorage.setItem(CODE_STORAGE_KEY, code);
+  safeStorage.set(CODE_STORAGE_KEY, code);
   $("gate").hidden = true;
   $("gateMsg").textContent = "";
   startSync(code);
 }
 
 $("changeCodeBtn").addEventListener("click", () => {
-  localStorage.removeItem(CODE_STORAGE_KEY);
+  safeStorage.remove(CODE_STORAGE_KEY);
   stopSync();
   $("gate").hidden = false;
 });
@@ -277,7 +285,7 @@ $("codeInput").addEventListener("input", (e) => {
 });
 
 window.addEventListener("DOMContentLoaded", () => {
-  const saved = localStorage.getItem(CODE_STORAGE_KEY);
+  const saved = safeStorage.get(CODE_STORAGE_KEY);
   if (saved) {
     $("gate").hidden = true;
     startSync(saved);
