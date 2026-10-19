@@ -22,6 +22,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.lightColorScheme
@@ -59,16 +60,26 @@ class ParentMainActivity : ComponentActivity() {
         ParentDashboardController(FamilyRepositoryProvider.getInstance(applicationContext))
     }
 
-    /** Android 13+ 알림 런타임 권한. 진입 1회만 요청한다. */
+    /** Android 13+ 알림 런타임 권한. 진입 1회 요청하고, 결과를 화면 배너에 반영한다. */
+    private var notificationPermissionGranted by mutableStateOf(true)
     private val notificationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            notificationPermissionGranted = granted
+        }
 
-    private fun requestNotificationPermissionOnceIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val granted = ContextCompat.checkSelfPermission(
+    private fun refreshNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionGranted = true
+            return
+        }
+        notificationPermissionGranted = ContextCompat.checkSelfPermission(
             this, Manifest.permission.POST_NOTIFICATIONS
         ) == PackageManager.PERMISSION_GRANTED
-        if (!granted) {
+    }
+
+    private fun requestNotificationPermissionOnceIfNeeded() {
+        refreshNotificationPermission()
+        if (!notificationPermissionGranted) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
@@ -87,6 +98,13 @@ class ParentMainActivity : ComponentActivity() {
             ) {
                 ParentMainScreen(
                     controller = controller,
+                    notificationPermissionGranted = notificationPermissionGranted,
+                    onRequestNotificationPermission = {
+                        refreshNotificationPermission()
+                        if (!notificationPermissionGranted) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    },
                     onPostSystemNotification = { alert ->
                         ParentNotificationHelper.showNotification(this, alert)
                     }
@@ -100,6 +118,8 @@ class ParentMainActivity : ComponentActivity() {
 @Composable
 fun ParentMainScreen(
     controller: ParentDashboardController,
+    notificationPermissionGranted: Boolean,
+    onRequestNotificationPermission: () -> Unit,
     onPostSystemNotification: (com.familylink.model.ParentAlert) -> Unit
 ) {
     val policy by controller.policy.collectAsState()
@@ -161,6 +181,9 @@ fun ParentMainScreen(
                     lastCreatedCode = lastCreatedCode,
                     onCreateCode = { scope.launch { controller.createFamilyCode() } }
                 )
+                if (!notificationPermissionGranted) {
+                    NotificationPermissionBanner(onRequest = onRequestNotificationPermission)
+                }
                 ChildDeviceStatusBanner(policy = policy, health = health)
             }
         },
@@ -224,6 +247,29 @@ fun ParentMainScreen(
                     onRemoveSafeZone = controller::removeSafeZone
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun NotificationPermissionBanner(onRequest: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFB45309))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "🔕 시스템 알림 권한 없음 — 자녀 요청·마일스톤 알림이 받아지지 않습니다",
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onRequest) {
+            Text("허용", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
 }
