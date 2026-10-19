@@ -3,14 +3,18 @@
 > FamilyLink Plus 브랜치 `feature/firebase-sync` 동기화·웹 열람 기능의 실기기 검증 절차.
 > 자동화 통과 기준: `./gradlew testDebugUnitTest assembleDebug` (google-services.json 유무 무관) — ✅ 완료
 
-## 사전 준비 (8~10분)
+## 사전 준비 — ✅ 2026-10-19 에이전트가 CLI/REST로 전부 완료
 
-1. **Firebase 콘솔**: 프로젝트 생성 → **Firestore Database 생성(테스트 모드)**.
-2. **Android 앱 2개 등록**: 패키지 `com.familylink.parent` / `com.familylink.child` 각각 SHA-1 불필요.
-3. 각 앱의 `google-services.json`을 다운로드해
-   `app-parent/google-services.json`, `app-child/google-services.json`로 저장.
-4. **Web 앱 등록** → config 복사 → `web-dashboard/app.js`의 `FIREBASE_CONFIG`에 붙여넣기.
-5. APK 설치: `./gradlew :app-parent:assembleDebug :app-child:assembleDebug` → 각 `build/outputs/apk/debug/*.apk`.
+| 항목 | 결과 |
+| :-- | :-- |
+| 1. Firebase 프로젝트 + Firestore(테스트 모드) | ✅ `familylink-plus-2026` / Firestore `(default)` **asia-northeast3(서울)** / 규칙 배포 완료 — 2027-01-19까지 전체 허용 |
+| 2. Android 앱 2개 등록 | ✅ `com.familylink.parent` / `com.familylink.child` (appId `…345cdb93ee4d238661e1b7`, `…0c877cc1bdbde54b61e1b7`) |
+| 3. google-services.json | ✅ 양쪽 모듈 루트 저장 (양쪽 패키지를 모두 포함한 전체 설정 — gradle 플러그인이 applicationId로 매칭) |
+| 4. Web 앱 등록 + config 주입 | ✅ appId `1:1052848737686:web:bfacf6e4db073a3a61e1b7` → `web-dashboard/app.js` 반영 (커밋 be049fa) |
+| 5. Pages 배포 | ✅ https://newace77.github.io/familylink-dashboard/ (리포 `newace77/familylink-dashboard`) — 게이트 렌더·Firestore 연결 쿼리 브라우저 검증 통과 ("가족을 찾을 수 없습니다" = 쿼리 성공, 데이터 미접속 상태) |
+| 6. `/tmp/fb-rules/firestore.rules` | 테스트 모드 규칙 원본 (CLI로 1회 배포됨, 규칙 수정 시 이 파일 참고) |
+
+→ **남는 것: 아래 실기기 검증 (APK 2대 설치 + 상호작용) 뿐.**
 
 ## 검증 항목
 
@@ -33,4 +37,4 @@
   체류지 목록이 데모 시드로 보이면 **정상** — 로드맵 2번 구현 후 실데이터로 교체된다.
 - 스펙 범위 밖(명시 유지): FCM 백그라운드 푸시, Firestore 규칙 정밀 강화/App Check,
   코드 갱신·만료, 다자녀, 웹 대시보드 제어 기능.
-- 웹 대시보드 배포는 `web-dashboard/README.md`의 8단계 가이드.
+- 웹 대시보드는 별도 공개 리포(`newace77/familylink-dashboard`)로 배포 — 원본은 `web-dashboard/`.
