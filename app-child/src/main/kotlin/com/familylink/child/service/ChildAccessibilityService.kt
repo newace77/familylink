@@ -2,6 +2,7 @@ package com.familylink.child.service
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.os.PowerManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.familylink.child.ChildMonitorController
@@ -14,6 +15,9 @@ class ChildAccessibilityService : AccessibilityService() {
         ChildMonitorController(FamilyRepositoryProvider.getInstance(applicationContext))
     }
 
+    private var lastWindowId: Int = Int.MIN_VALUE
+    private var lastEvaluatedMillis: Long = 0L
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         FamilyRepositoryProvider.getInstance(applicationContext).updateDeviceHealth {
@@ -25,6 +29,18 @@ class ChildAccessibilityService : AccessibilityService() {
         val rootNode = rootInActiveWindow ?: return
         val pkgName = event?.packageName?.toString() ?: rootNode.packageName?.toString() ?: return
         if (pkgName == packageName) return
+
+        // 접근성 튜닝: 화면이 꺼진 동안(로마크 설계 - 배터리 절약) 노드 탐색을 중단한다.
+        val powerManager = getSystemService(POWER_SERVICE) as? PowerManager
+        val isInteractive = powerManager?.isInteractive ?: true
+        if (!isInteractive) return
+
+        // 접근성 튜닝: 동일 창 연속 이벤트는 2초 = 1회만 평가 (파워 정책 - 스펙 2번).
+        val now = System.currentTimeMillis()
+        val windowId = rootNode.windowId
+        if (windowId == lastWindowId && now - lastEvaluatedMillis < 2_000L) return
+        lastWindowId = windowId
+        lastEvaluatedMillis = now
 
         val className = event?.className?.toString()
         val extracted = inspectNodeTree(rootNode, pkgName)
