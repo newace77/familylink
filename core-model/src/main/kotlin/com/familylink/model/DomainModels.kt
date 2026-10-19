@@ -101,6 +101,10 @@ data class StayPointSession(
     val dwellMinutes: Int
         get() = ((departedAtMillis - arrivedAtMillis).coerceAtLeast(0L) / 60_000L).toInt()
 
+    /** departedAtMillis == 0L 이면 아직 체류 중(진행 중) 세션이다. */
+    val isOngoing: Boolean
+        get() = departedAtMillis == 0L
+
     val totalScreenMinutes: Int
         get() = appUsages.sumOf { it.usageMinutes }
 
@@ -151,17 +155,17 @@ data class DeviceHealth(
     val isCharging: Boolean = false,
     val ringerState: RingerState = RingerState.NORMAL,
     val networkState: NetworkState = NetworkState.WIFI,
-    val currentPlaceName: String = "역삼초 앞 GS25 편의점",
-    val currentLatitude: Double = 37.4994,
-    val currentLongitude: Double = 127.0334,
-    val currentForegroundApp: String = "YouTube",
-    val totalUsedMinutesToday: Int = 65,
+    val currentPlaceName: String = "위치 미확인",
+    val currentLatitude: Double = 0.0,
+    val currentLongitude: Double = 0.0,
+    val currentForegroundApp: String = "",
+    val totalUsedMinutesToday: Int = 0,
     val appUsedMinutesToday: Map<String, Int> = emptyMap(),
     val accessibilityEnabled: Boolean = true,
     val usageStatsEnabled: Boolean = true,
     val overlayPermissionEnabled: Boolean = true,
     val deviceAdminEnabled: Boolean = true,
-    val locationPermissionEnabled: Boolean = true,
+    val locationPermissionEnabled: Boolean = false,
     val lastUpdatedMillis: Long = System.currentTimeMillis()
 )
 

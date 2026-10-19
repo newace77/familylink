@@ -46,6 +46,7 @@ fun PolicyControlTab(
     health: DeviceHealth,
     onToggleInstantLock: (Boolean) -> Unit,
     onGrantBonusTime: (Int) -> Unit,
+    onUpdateParentPin: (String) -> Unit,
     onUpdateTimeWindow: (Int, Int, Int, Int) -> Unit,
     onUpdateDailyLimit: (Int?) -> Unit,
     onUpdateAlertInterval: (Int) -> Unit,
@@ -123,6 +124,76 @@ fun PolicyControlTab(
                         ) {
                             Text("보너스 초기화", fontSize = 12.sp)
                         }
+                    }
+                }
+            }
+        }
+
+        // 2. Feature PIN 보안: 부모 잠금 해제 PIN 변경 (기본 0000 경고)
+        item {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "🔑 부모 PIN 변경 (잠금 해제 비밀번호)",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp
+                    )
+                    if (policy.parentPin == "0000") {
+                        Text(
+                            text = "⚠️ 아직 기본 PIN(0000)을 사용 중입니다. 아이가 쉽게 유추할 수 있어 지금 바로 바꾸세요.",
+                            fontSize = 12.sp,
+                            color = Color(0xFFDC2626)
+                        )
+                    } else {
+                        Text(
+                            text = "현재 PIN 사용 중 (변경은 교체 시에만)",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                    var pinText by remember { mutableStateOf("") }
+                    var pinError by remember { mutableStateOf<String?>(null) }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = pinText,
+                            onValueChange = { pinText = it.filter { c -> c.isDigit() }.take(6) },
+                            label = { Text("새 PIN (4~6자리 숫자)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            singleLine = true,
+                            isError = pinError != null,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Button(
+                            onClick = {
+                                val newPin = pinText.trim()
+                                pinError = when {
+                                    newPin.length !in 4..6 -> "PIN은 4~6자리 숫자여야 합니다."
+                                    newPin == "0000" -> "기본값(0000)은 사용할 수 없습니다."
+                                    else -> null
+                                }
+                                if (pinError == null) {
+                                    onUpdateParentPin(newPin)
+                                    pinText = ""
+                                }
+                            }
+                        ) {
+                            Text("저장", fontSize = 12.sp)
+                        }
+                    }
+                    if (pinError != null) {
+                        Text(
+                            text = pinError!!,
+                            fontSize = 11.sp,
+                            color = Color(0xFFDC2626)
+                        )
                     }
                 }
             }

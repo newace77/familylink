@@ -92,4 +92,36 @@ class FamilySyncRepositoryTest {
         )
         assertThat(repository.alerts.value.first().milestoneMinutes).isEqualTo(90)
     }
+
+    @Test
+    fun `pairing state defaults to NOT_PAIRED`() = runTest {
+        val repository = LocalFamilySyncRepository(storageFile = null)
+        assertThat(repository.pairingState.value).isEqualTo(PairingState.NOT_PAIRED)
+    }
+
+    @Test
+    fun `createFamilyCode returns six digit code and moves to WAITING`() = runTest {
+        val repository = LocalFamilySyncRepository(storageFile = null)
+        val code = repository.createFamilyCode()
+        assertThat(code).hasLength(6)
+        assertThat(code.all { it.isDigit() }).isTrue()
+        assertThat(repository.pairingState.value).isEqualTo(PairingState.WAITING)
+    }
+
+    @Test
+    fun `linkFamilyCode with any six digit code demo-links`() = runTest {
+        val repository = LocalFamilySyncRepository(storageFile = null)
+        repository.createFamilyCode()
+        assertThat(repository.linkFamilyCode("123456")).isTrue()
+        assertThat(repository.pairingState.value).isEqualTo(PairingState.LINKED)
+    }
+
+    @Test
+    fun `linkFamilyCode rejects non six digit input and keeps state`() = runTest {
+        val repository = LocalFamilySyncRepository(storageFile = null)
+        repository.createFamilyCode()
+        assertThat(repository.linkFamilyCode("abc")).isFalse()
+        assertThat(repository.linkFamilyCode("12345")).isFalse()
+        assertThat(repository.pairingState.value).isEqualTo(PairingState.WAITING)
+    }
 }

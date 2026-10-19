@@ -46,3 +46,7 @@ dependencies {
     testImplementation("com.google.truth:truth:1.4.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
 }
+
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}

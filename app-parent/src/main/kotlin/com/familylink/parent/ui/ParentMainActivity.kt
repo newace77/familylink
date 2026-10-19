@@ -1,8 +1,12 @@
 package com.familylink.parent.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,15 +22,21 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,8 +44,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.familylink.data.FamilyRepositoryProvider
+import com.familylink.data.PairingState
 import com.familylink.model.ControlPolicy
 import com.familylink.model.DeviceHealth
+import com.familylink.model.ParentAlert
 import com.familylink.parent.notification.ParentNotificationHelper
 import com.familylink.parent.ui.tabs.AlertsAndSafeZonesTab
 import com.familylink.parent.ui.tabs.LocationUsageMapTab
@@ -48,8 +60,33 @@ class ParentMainActivity : ComponentActivity() {
         ParentDashboardController(FamilyRepositoryProvider.getInstance(applicationContext))
     }
 
+    /** Android 13+ 알림 런타임 권한. 진입 1회 요청하고, 결과를 화면 배너에 반영한다. */
+    private var notificationPermissionGranted by mutableStateOf(true)
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            notificationPermissionGranted = granted
+        }
+
+    private fun refreshNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionGranted = true
+            return
+        }
+        notificationPermissionGranted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun requestNotificationPermissionOnceIfNeeded() {
+        refreshNotificationPermission()
+        if (!notificationPermissionGranted) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestNotificationPermissionOnceIfNeeded()
         setContent {
             MaterialTheme(
                 colorScheme = lightColorScheme(
@@ -61,6 +98,13 @@ class ParentMainActivity : ComponentActivity() {
             ) {
                 ParentMainScreen(
                     controller = controller,
+                    notificationPermissionGranted = notificationPermissionGranted,
+                    onRequestNotificationPermission = {
+                        refreshNotificationPermission()
+                        if (!notificationPermissionGranted) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    },
                     onPostSystemNotification = { alert ->
                         ParentNotificationHelper.showNotification(this, alert)
                     }
@@ -74,6 +118,8 @@ class ParentMainActivity : ComponentActivity() {
 @Composable
 fun ParentMainScreen(
     controller: ParentDashboardController,
+    notificationPermissionGranted: Boolean,
+    onRequestNotificationPermission: () -> Unit,
     onPostSystemNotification: (com.familylink.model.ParentAlert) -> Unit
 ) {
     val policy by controller.policy.collectAsState()
@@ -83,8 +129,29 @@ fun ParentMainScreen(
     val webLogs by controller.webLogs.collectAsState()
     val alerts by controller.alerts.collectAsState()
     val safeZones by controller.safeZones.collectAsState()
+    val pairingState by controller.pairingState.collectAsState()
+    val lastCreatedCode by controller.lastCreatedCode.collectAsState()
+    val scope = rememberCoroutineScope()
 
     var currentTabIndex by remember { mutableIntStateOf(0) }
+
+    // 새 alert 도착 → 시스템 알림 자동 라우팅 (마지막 처리 alertId 추적)
+    // 첫 구성에서 이미 존재하던(alert 시드·재시작 전 알림)은 포스팅하지 않는다 — 재시작마다
+    // 데모 시드 알림이 다시 울리는 것을 막는다.
+    var lastRoutedAlertId by remember { mutableStateOf<String?>(null) }
+    var alertRoutingSeeded by remember { mutableStateOf(false) }
+    LaunchedEffect(alerts) {
+        val newest = alerts.firstOrNull() ?: return@LaunchedEffect
+        if (!alertRoutingSeeded) {
+            alertRoutingSeeded = true
+            lastRoutedAlertId = newest.alertId
+            return@LaunchedEffect
+        }
+        if (newest.alertId != lastRoutedAlertId) {
+            lastRoutedAlertId = newest.alertId
+            onPostSystemNotification(newest)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -109,6 +176,14 @@ fun ParentMainScreen(
                         titleContentColor = Color.White
                     )
                 )
+                PairingBanner(
+                    state = pairingState,
+                    lastCreatedCode = lastCreatedCode,
+                    onCreateCode = { scope.launch { controller.createFamilyCode() } }
+                )
+                if (!notificationPermissionGranted) {
+                    NotificationPermissionBanner(onRequest = onRequestNotificationPermission)
+                }
                 ChildDeviceStatusBanner(policy = policy, health = health)
             }
         },
@@ -151,6 +226,7 @@ fun ParentMainScreen(
                     health = health,
                     onToggleInstantLock = controller::toggleInstantLock,
                     onGrantBonusTime = controller::grantBonusTime,
+                    onUpdateParentPin = controller::updateParentPin,
                     onUpdateTimeWindow = controller::updateAllowedTimeWindow,
                     onUpdateDailyLimit = controller::updateDailyLimitMinutes,
                     onUpdateAlertInterval = controller::updateAlertIntervalMinutes,
@@ -171,6 +247,29 @@ fun ParentMainScreen(
                     onRemoveSafeZone = controller::removeSafeZone
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun NotificationPermissionBanner(onRequest: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFB45309))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "🔕 시스템 알림 권한 없음 — 자녀 요청·마일스톤 알림이 받아지지 않습니다",
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onRequest) {
+            Text("허용", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
 }

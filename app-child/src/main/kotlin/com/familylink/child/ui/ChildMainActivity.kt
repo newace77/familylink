@@ -1,15 +1,20 @@
 package com.familylink.child.ui
 
+import android.Manifest
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.collectAsState
@@ -21,6 +26,9 @@ import com.familylink.child.ChildMonitorController
 import com.familylink.child.service.ChildDeviceAdminReceiver
 import com.familylink.child.service.ChildMonitoringForegroundService
 import com.familylink.data.FamilyRepositoryProvider
+import com.familylink.data.PairingState
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class ChildMainActivity : ComponentActivity() {
 
@@ -31,14 +39,34 @@ class ChildMainActivity : ComponentActivity() {
     private var lockReasonTitle by mutableStateOf("사용 제한")
     private var lockReasonMessage by mutableStateOf("부모님이 설정한 정책에 의해 현재 화면이 잠겼습니다.")
 
+    /** 체류 지점 기록용 위치 권한. 자녀는 아이 사용자이므로 진입 1회 요청한다. */
+    private val locationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+
+    private fun requestLocationPermissionOnceIfNeeded() {
+        val granted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestLocationPermissionOnceIfNeeded()
         handleIncomingIntent(intent)
         startGuardServiceSafely()
 
         setContent {
             val policy by repository.policy.collectAsState()
             val health by repository.deviceHealth.collectAsState()
+            val pairingState by repository.pairingState.collectAsState()
             val lockState by controller.activeLockState.collectAsState()
 
             val showLock = forceLockScreen || lockState.isBlocked || policy.isImmediateLocked
@@ -51,8 +79,21 @@ class ChildMainActivity : ComponentActivity() {
                     surface = Color.White
                 )
             ) {
-                if (showLock) {
-                    LockOverlayScreen(
+                when {
+                    // 페어링 전: 6자리 가족 코드 입력 화면이 최상단 (LINKED까지 유지)
+                    pairingState != PairingState.LINKED -> FamilyPairingScreen(
+                        onConfirm = { code ->
+                            val formatValid = code.length == 6 && code.all { it.isDigit() }
+                            if (formatValid) {
+                                // 실존 확인은 백그라운드 코루틴: gms Task 콜백이 Main Looper에
+                                // 게시되므로 runBlocking으로 기다리면 교착 위험이 있다 (Task 6 판정).
+                                // 잘못된 코드면 상태가 NOT_PAIRED/WAITING으로 유지되어 화면이 그대로 뜬다.
+                                lifecycleScope.launch { repository.linkFamilyCode(code) }
+                            }
+                            formatValid
+                        }
+                    )
+                    showLock -> LockOverlayScreen(
                         childName = policy.childName,
                         reasonTitle = if (policy.isImmediateLocked) "부모님 즉시 잠금" else if (lockState.isBlocked) lockState.reason.displayTitle else lockReasonTitle,
                         reasonMessage = if (policy.isImmediateLocked) "부모님이 원격으로 스마트폰을 잠갔습니다." else if (lockState.isBlocked) lockState.message else lockReasonMessage,
@@ -71,12 +112,19 @@ class ChildMainActivity : ComponentActivity() {
                             startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:112")))
                         }
                     )
-                } else {
-                    ChildDashboardScreen(
+                    else -> ChildDashboardScreen(
                         policy = policy,
                         health = health,
                         onOpenAccessibilitySettings = {
                             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        },
+                        onEnableLocation = {
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:$packageName")
+                                )
+                            )
                         },
                         onOpenUsageStatsSettings = {
                             startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))

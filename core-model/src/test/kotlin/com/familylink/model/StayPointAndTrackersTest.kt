@@ -184,6 +184,37 @@ class StayPointAndTrackersTest {
     }
 
     @Test
+    fun `TamperGuardDetector detects Samsung-specific device admin and installed apps screens`() {
+        // 삼성 표기: "디바이스 관리자"는 기기 관리자 해제 시도로 항상 차단
+        val samsungAdmin = TamperGuardDetector.inspectWindow(
+            packageName = "com.android.settings",
+            className = "com.android.settings.SubSettings",
+            visibleTexts = listOf("디바이스 관리자", "FamilyLink Plus", "취소"),
+            protectedAppName = "FamilyLink Plus"
+        )
+        assertThat(samsungAdmin.isTamperAttempt).isTrue()
+        assertThat(samsungAdmin.reason).contains("기기 관리자")
+
+        // 삼성 설정 앱 목록: 보호 앱이 목록에 들어온 상태로 "설치된 앱" 화면 진입 차단
+        val installedApps = TamperGuardDetector.inspectWindow(
+            packageName = "com.android.settings",
+            className = "com.android.settings.applications.ApplicationsSettings",
+            visibleTexts = listOf("설치된 앱", "FamilyLink Plus", "YouTube", "설정"),
+            protectedAppName = "FamilyLink Plus"
+        )
+        assertThat(installedApps.isTamperAttempt).isTrue()
+
+        // 보호 앱이 언급되지 않는 설정 앱 목록(일반 사용)은 과잉 차단하지 않는다
+        val otherAppsOnly = TamperGuardDetector.inspectWindow(
+            packageName = "com.android.settings",
+            className = "com.android.settings.applications.ApplicationsSettings",
+            visibleTexts = listOf("설치된 앱", "YouTube", "Google", "설정"),
+            protectedAppName = "FamilyLink Plus"
+        )
+        assertThat(otherAppsOnly.isTamperAttempt).isFalse()
+    }
+
+    @Test
     fun `SafeZoneEvaluator detects entry and exit transitions`() {
         val schoolZone = SafeZone(
             zoneId = "zone-school",

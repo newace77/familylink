@@ -1,0 +1,11 @@
+{
+  "name": "FamilyLink Plus 열람",
+  "short_name": "FamilyLink",
+  "description": "아이 스마트폰 사용현황 열람 전용 대시보드 (제어는 부모 앱에서)",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#1d4ed8",
+  "lang": "ko"
+}

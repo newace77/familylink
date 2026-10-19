@@ -1,6 +1,7 @@
 package com.familylink.parent.ui
 
 import com.familylink.data.FamilySyncRepository
+import com.familylink.data.PairingState
 import com.familylink.model.AppAccessMode
 import com.familylink.model.ContentType
 import com.familylink.model.ControlPolicy
@@ -22,6 +23,10 @@ class ParentDashboardController(
     val webLogs: StateFlow<List<WebContentLog>> = repository.webLogs
     val alerts: StateFlow<List<ParentAlert>> = repository.alerts
     val safeZones: StateFlow<List<SafeZone>> = repository.safeZones
+    val pairingState: StateFlow<PairingState> = repository.pairingState
+    val lastCreatedCode: StateFlow<String?> = repository.lastCreatedCode
+
+    suspend fun createFamilyCode(): String = repository.createFamilyCode()
 
     private val _selectedStaySession = MutableStateFlow(repository.staySessions.value.firstOrNull())
     val selectedStaySession: StateFlow<StayPointSession?> = _selectedStaySession.asStateFlow()
