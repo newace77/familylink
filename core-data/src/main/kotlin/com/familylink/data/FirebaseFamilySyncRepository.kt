@@ -44,7 +44,7 @@ class FirebaseFamilySyncRepository(
     private val _policy = MutableStateFlow(seedPolicy)
     override val policy: StateFlow<ControlPolicy> = _policy.asStateFlow()
 
-    private val _deviceHealth = MutableStateFlow(DemoScenarioSeed.defaultDeviceHealth())
+    private val _deviceHealth = MutableStateFlow(DeviceHealth())
     override val deviceHealth: StateFlow<DeviceHealth> = _deviceHealth.asStateFlow()
 
     private val _staySessions = MutableStateFlow(DemoScenarioSeed.defaultStaySessions())

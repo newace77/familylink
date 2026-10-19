@@ -106,7 +106,7 @@ class ModelJsonTest {
             isCharging = false,
             ringerState = com.familylink.model.RingerState.NORMAL,
             networkState = com.familylink.model.NetworkState.WIFI,
-            currentPlaceName = "알 수 없는 위치",
+            currentPlaceName = "위치 미확인",
             currentLatitude = 0.0,
             currentLongitude = 0.0,
             currentForegroundApp = "",

@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1052848737686",
+    "project_id": "familylink-plus-2026",
+    "storage_bucket": "familylink-plus-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1052848737686:android:0c877cc1bdbde54b61e1b7",
+        "android_client_info": {
+          "package_name": "com.familylink.child"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZa58oumfUzO_0yZPSTbj_ao0Zd0IFd_w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1052848737686:android:345cdb93ee4d238661e1b7",
+        "android_client_info": {
+          "package_name": "com.familylink.parent"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCZa58oumfUzO_0yZPSTbj_ao0Zd0IFd_w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

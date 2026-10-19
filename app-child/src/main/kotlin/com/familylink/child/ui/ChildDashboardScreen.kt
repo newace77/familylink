@@ -47,6 +47,7 @@ fun ChildDashboardScreen(
     policy: ControlPolicy,
     health: DeviceHealth,
     onOpenAccessibilitySettings: () -> Unit,
+    onEnableLocation: () -> Unit,
     onOpenUsageStatsSettings: () -> Unit,
     onOpenOverlaySettings: () -> Unit,
     onEnableDeviceAdmin: () -> Unit,
@@ -180,9 +181,14 @@ fun ChildDashboardScreen(
                     ) {
                         Text("🛡️ 필수 보호 권한 및 삭제 방지 설정", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text(
-                            "크롬 웹페이지 확인, 위치+앱 사용 기록 연동, 임의 삭제 방지를 위해 아래 4가지 권한을 활성화합니다.",
+                            "크롬 웹페이지 확인, 위치+앱 사용 기록 연동, 임의 삭제 방지를 위해 아래 5가지 권한을 활성화합니다.",
                             fontSize = 12.sp,
                             color = Color(0xFF64748B)
+                        )
+                        PermissionActionRow(
+                            title = "0. 위치 권한 (체류 지점 자동 기록)",
+                            enabled = health.locationPermissionEnabled,
+                            onClick = onEnableLocation
                         )
                         PermissionActionRow(
                             title = "1. 접근성 서비스 (크롬 URL·유튜브 제목·설정 변경 차단)",

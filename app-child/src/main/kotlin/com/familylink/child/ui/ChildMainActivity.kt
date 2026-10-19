@@ -1,15 +1,19 @@
 package com.familylink.child.ui
 
+import android.Manifest
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
@@ -35,8 +39,27 @@ class ChildMainActivity : ComponentActivity() {
     private var lockReasonTitle by mutableStateOf("사용 제한")
     private var lockReasonMessage by mutableStateOf("부모님이 설정한 정책에 의해 현재 화면이 잠겼습니다.")
 
+    /** 체류 지점 기록용 위치 권한. 자녀는 아이 사용자이므로 진입 1회 요청한다. */
+    private val locationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { }
+
+    private fun requestLocationPermissionOnceIfNeeded() {
+        val granted = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestLocationPermissionOnceIfNeeded()
         handleIncomingIntent(intent)
         startGuardServiceSafely()
 
@@ -94,6 +117,14 @@ class ChildMainActivity : ComponentActivity() {
                         health = health,
                         onOpenAccessibilitySettings = {
                             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        },
+                        onEnableLocation = {
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:$packageName")
+                                )
+                            )
                         },
                         onOpenUsageStatsSettings = {
                             startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))

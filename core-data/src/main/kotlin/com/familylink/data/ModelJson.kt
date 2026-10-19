@@ -124,7 +124,7 @@ object ModelJson {
         networkState = runCatching {
             NetworkState.valueOf(json.optString("networkState", "WIFI"))
         }.getOrDefault(NetworkState.WIFI),
-        currentPlaceName = json.optString("currentPlaceName", "알 수 없는 위치"),
+        currentPlaceName = json.optString("currentPlaceName", "위치 미확인"),
         currentLatitude = json.optDouble("currentLatitude", 0.0),
         currentLongitude = json.optDouble("currentLongitude", 0.0),
         currentForegroundApp = json.optString("currentForegroundApp", ""),
@@ -139,7 +139,7 @@ object ModelJson {
         usageStatsEnabled = json.optBoolean("usageStatsEnabled", true),
         overlayPermissionEnabled = json.optBoolean("overlayPermissionEnabled", true),
         deviceAdminEnabled = json.optBoolean("deviceAdminEnabled", true),
-        locationPermissionEnabled = json.optBoolean("locationPermissionEnabled", true),
+        locationPermissionEnabled = json.optBoolean("locationPermissionEnabled", false),
         lastUpdatedMillis = json.optLong("lastUpdatedMillis", System.currentTimeMillis())
     )
 
