@@ -203,6 +203,7 @@ fun ParentMainScreen(
                     health = health,
                     onToggleInstantLock = controller::toggleInstantLock,
                     onGrantBonusTime = controller::grantBonusTime,
+                    onUpdateParentPin = controller::updateParentPin,
                     onUpdateTimeWindow = controller::updateAllowedTimeWindow,
                     onUpdateDailyLimit = controller::updateDailyLimitMinutes,
                     onUpdateAlertInterval = controller::updateAlertIntervalMinutes,

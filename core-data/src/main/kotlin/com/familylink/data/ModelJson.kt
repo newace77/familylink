@@ -272,8 +272,30 @@ object ModelJson {
         })
     }
 
-    fun staySessionFromJson(json: JSONObject): StayPointSession {
-        val usages = mutableListOf<AppUsageSegment>()
+    // ---------- 리스트 단위 (로컬 영구저장 v2 계약) ----------
+
+    fun staySessionsToJson(sessions: List<StayPointSession>): JSONArray = JSONArray().apply {
+        sessions.forEach { put(staySessionToJson(it)) }
+    }
+
+    fun staySessionsFromJson(array: JSONArray): List<StayPointSession> =
+        List(array.length()) { i -> staySessionFromJson(array.getJSONObject(i)) }
+
+    fun webLogsToJson(logs: List<WebContentLog>): JSONArray = JSONArray().apply {
+        logs.forEach { put(webLogToJson(it)) }
+    }
+
+    fun webLogsFromJson(array: JSONArray): List<WebContentLog> =
+        List(array.length()) { i -> webLogFromJson(array.getJSONObject(i)) }
+
+    fun alertsToJson(alerts: List<ParentAlert>): JSONArray = JSONArray().apply {
+        alerts.forEach { put(alertToJson(it)) }
+    }
+
+    fun alertsFromJson(array: JSONArray): List<ParentAlert> =
+        List(array.length()) { i -> alertFromJson(array.getJSONObject(i)) }
+
+    fun staySessionFromJson(json: JSONObject): StayPointSession {        val usages = mutableListOf<AppUsageSegment>()
         val usageArray = json.optJSONArray("appUsages") ?: JSONArray("[]")
         for (i in 0 until usageArray.length()) {
             val row = usageArray.getJSONObject(i)

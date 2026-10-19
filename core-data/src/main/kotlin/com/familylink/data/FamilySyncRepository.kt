@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import kotlin.random.Random
@@ -132,7 +133,7 @@ class LocalFamilySyncRepository(
                 updatedAtEpochMillis = System.currentTimeMillis()
             )
         }
-        persistPolicySnapshot()
+        persistStateSnapshot()
     }
 
     override fun updateDailyLimitMinutes(limitMinutes: Int?) {
@@ -142,7 +143,7 @@ class LocalFamilySyncRepository(
                 updatedAtEpochMillis = System.currentTimeMillis()
             )
         }
-        persistPolicySnapshot()
+        persistStateSnapshot()
     }
 
     override fun updateAlertIntervalMinutes(intervalMinutes: Int) {
@@ -154,7 +155,7 @@ class LocalFamilySyncRepository(
             )
         }
         lastNotifiedMilestoneStep = _deviceHealth.value.totalUsedMinutesToday / safeInterval
-        persistPolicySnapshot()
+        persistStateSnapshot()
     }
 
     override fun setImmediateLock(locked: Boolean) {
@@ -175,7 +176,7 @@ class LocalFamilySyncRepository(
                 )
             )
         }
-        persistPolicySnapshot()
+        persistStateSnapshot()
     }
 
     override fun grantBonusMinutes(additionalMinutes: Int) {
@@ -186,7 +187,7 @@ class LocalFamilySyncRepository(
                 updatedAtEpochMillis = System.currentTimeMillis()
             )
         }
-        persistPolicySnapshot()
+        persistStateSnapshot()
     }
 
     override fun updateParentPin(newPin: String) {
@@ -194,7 +195,7 @@ class LocalFamilySyncRepository(
             _policy.update {
                 it.copy(parentPin = newPin, updatedAtEpochMillis = System.currentTimeMillis())
             }
-            persistPolicySnapshot()
+            persistStateSnapshot()
         }
     }
 
@@ -208,7 +209,7 @@ class LocalFamilySyncRepository(
             )
             current.copy(appRules = updatedMap, updatedAtEpochMillis = System.currentTimeMillis())
         }
-        persistPolicySnapshot()
+        persistStateSnapshot()
     }
 
     override fun addOrUpdateSafeZone(zone: SafeZone) {
@@ -216,10 +217,12 @@ class LocalFamilySyncRepository(
             val without = current.filterNot { it.zoneId == zone.zoneId }
             listOf(zone) + without
         }
+        persistStateSnapshot()
     }
 
     override fun removeSafeZone(zoneId: String) {
         _safeZones.update { current -> current.filterNot { it.zoneId == zoneId } }
+        persistStateSnapshot()
     }
 
     override fun recordWebContentLog(log: WebContentLog) {
@@ -239,12 +242,14 @@ class LocalFamilySyncRepository(
                 }
             }
         }
+        persistStateSnapshot()
     }
 
     override fun recordStayPointSession(session: StayPointSession) {
         _staySessions.update { current ->
             listOf(session) + current.filterNot { it.sessionId == session.sessionId }
         }
+        persistStateSnapshot()
     }
 
     override fun recordUsageProgress(
@@ -282,32 +287,37 @@ class LocalFamilySyncRepository(
 
     override fun emitAlert(alert: ParentAlert) {
         _alerts.update { current -> listOf(alert) + current }
+        persistStateSnapshot()
     }
 
     override fun acknowledgeAlert(alertId: String) {
         _alerts.update { current ->
             current.map { if (it.alertId == alertId) it.copy(isAcknowledged = true) else it }
         }
+        persistStateSnapshot()
     }
 
     override fun updateDeviceHealth(transform: (DeviceHealth) -> DeviceHealth) {
         _deviceHealth.update(transform)
+        persistStateSnapshot()
     }
 
-    private fun persistPolicySnapshot() {
+    /**
+     * 전체 상태가 영구파일로 라운드트립된다 (로드맵 4).
+     * policy/deviceHealth/staySessions/webLogs/alerts/safeZones — ModelJson 계약 재사용.
+     * 레거시 파일(policy 필드만 있는 JSON)도 로드 시 그대로 소화한다.
+     */
+    fun persistStateSnapshot() {
         val file = storageFile ?: return
         runCatching {
-            val p = _policy.value
             val root = JSONObject().apply {
-                put("allowedStartHour", p.allowedStartHour)
-                put("allowedStartMinute", p.allowedStartMinute)
-                put("allowedEndHour", p.allowedEndHour)
-                put("allowedEndMinute", p.allowedEndMinute)
-                put("dailyLimitMinutes", p.dailyLimitMinutes ?: -1)
-                put("bonusMinutesToday", p.bonusMinutesToday)
-                put("isImmediateLocked", p.isImmediateLocked)
-                put("alertIntervalMinutes", p.alertIntervalMinutes)
-                put("parentPin", p.parentPin)
+                put("version", 2)
+                put("policy", ModelJson.policyToJson(_policy.value))
+                put("deviceHealth", ModelJson.deviceHealthToJson(_deviceHealth.value))
+                put("staySessions", ModelJson.staySessionsToJson(_staySessions.value))
+                put("webLogs", ModelJson.webLogsToJson(_webLogs.value))
+                put("alerts", ModelJson.alertsToJson(_alerts.value))
+                put("safeZones", ModelJson.safeZonesToJson(_safeZones.value))
             }
             file.parentFile?.mkdirs()
             file.writeText(root.toString())
@@ -319,6 +329,18 @@ class LocalFamilySyncRepository(
         if (!file.exists()) return
         runCatching {
             val root = JSONObject(file.readText())
+            val policyJson = root.optJSONObject("policy")
+            if (policyJson != null) {
+                // v2 전체 상태 복원
+                _policy.value = ModelJson.policyFromJson(policyJson)
+                _deviceHealth.value = ModelJson.deviceHealthFromJson(root.optJSONObject("deviceHealth") ?: JSONObject())
+                _staySessions.value = ModelJson.staySessionsFromJson(root.optJSONArray("staySessions") ?: JSONArray())
+                _webLogs.value = ModelJson.webLogsFromJson(root.optJSONArray("webLogs") ?: JSONArray())
+                _alerts.value = ModelJson.alertsFromJson(root.optJSONArray("alerts") ?: JSONArray())
+                _safeZones.value = ModelJson.safeZonesFromJson(root.optJSONArray("safeZones") ?: JSONArray())
+                return
+            }
+            // 레거시(정책 단독 스냅샷) 마이그레이션
             val dailyLimit = root.optInt("dailyLimitMinutes", 120).takeIf { it > 0 }
             _policy.update {
                 it.copy(
