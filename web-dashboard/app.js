@@ -11,7 +11,14 @@
  */
 
 // ▼▼ 한 번만: Firebase 콘솔에서 복사한 web 앱 config를 아래에 붙여넣으세요 ▼▼
-const FIREBASE_CONFIG = null; // 예: { apiKey: "...", authDomain: "...", projectId: "...", ... }
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyB-VJ_pn2-vxrNIgFfTc92XJHNsHf6Ka4g",
+  authDomain: "familylink-plus-2026.firebaseapp.com",
+  projectId: "familylink-plus-2026",
+  storageBucket: "familylink-plus-2026.firebasestorage.app",
+  messagingSenderId: "1052848737686",
+  appId: "1:1052848737686:web:bfacf6e4db073a3a61e1b7"
+};
 // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
