@@ -3,7 +3,6 @@ package com.familylink.model
 import java.util.UUID
 
 object BrowserContentFilter {
-    private const val DEBOUNCE_WINDOW_MILLIS = 3_000L
 
     val SUPPORTED_BROWSERS = mapOf(
         "com.android.chrome" to "Chrome",
@@ -42,9 +41,10 @@ object BrowserContentFilter {
             }
             if (lastLog != null &&
                 lastLog.sourcePackage == packageName &&
-                lastLog.title == cleanTitle &&
-                (nowMillis - lastLog.timestampMillis) < DEBOUNCE_WINDOW_MILLIS
+                lastLog.title == cleanTitle
             ) {
+                // 같은 영상이 계속 열려 있는 동안에는 (시간과 무관하게) 새 기록을 만들지 않는다.
+                // 다른 콘텐츠를 거쳐 다시 열면 lastLog가 바뀌므로 그때 새로 기록된다.
                 return null
             }
             return WebContentLog(
@@ -83,9 +83,10 @@ object BrowserContentFilter {
 
         if (lastLog != null &&
             lastLog.sourcePackage == packageName &&
-            lastLog.urlOrQuery == normalizedUrl &&
-            (nowMillis - lastLog.timestampMillis) < DEBOUNCE_WINDOW_MILLIS
+            lastLog.urlOrQuery == normalizedUrl
         ) {
+            // 같은 페이지가 계속 열려 있는 동안에는 (시간과 무관하게) 새 기록을 만들지 않는다.
+            // 창 콘텐츠 변경 이벤트가 수 초마다 반복돼도 동일 URL은 한 번만 기록된다.
             return null
         }
 

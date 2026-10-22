@@ -2,7 +2,9 @@ package com.familylink.child
 
 import com.familylink.data.LocalFamilySyncRepository
 import com.familylink.model.AlertType
+import com.familylink.model.ContentType
 import com.familylink.model.LockReason
+import com.familylink.model.WebContentLog
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
@@ -75,5 +77,39 @@ class ChildMonitorControllerTest {
         assertThat(tamperDecision.isBlocked).isTrue()
         assertThat(tamperDecision.reason).isEqualTo(LockReason.TAMPER_PROTECTION)
         assertThat(repository.alerts.value.first().type).isEqualTo(AlertType.TAMPER_ATTEMPT)
+    }
+
+    @Test
+    fun `seeds last web log from repository so a restarted service does not duplicate the open page`() {
+        val repository = LocalFamilySyncRepository(storageFile = null)
+        val seedLog = WebContentLog(
+            id = "seed-1",
+            timestampMillis = 100_000L,
+            sourcePackage = "com.android.chrome",
+            browserOrAppName = "Chrome",
+            contentType = ContentType.WEB_PAGE,
+            title = "NAVER",
+            urlOrQuery = "https://m.naver.com/home"
+        )
+        repository.recordWebContentLog(seedLog)
+        val countAfterSeed = repository.webLogs.value.size
+
+        // 새 컨트롤러 = 접근성 서비스/프로세스 재시작 상황.
+        // 같은 페이지가 다시 평가되더라도 새 기록을 만들지 않아야 한다.
+        val controller = ChildMonitorController(repository)
+        controller.onForegroundWindowEvaluated(
+            packageName = "com.android.chrome",
+            className = "org.chromium.chrome.browser.ChromeTabbedActivity",
+            visibleTexts = listOf("NAVER"),
+            urlCandidate = "m.naver.com/home",
+            titleCandidate = "NAVER",
+            isUrlBarFocused = false,
+            currentHour = 15,
+            currentMinute = 20,
+            nowMillis = 500_000L
+        )
+
+        assertThat(repository.webLogs.value.size).isEqualTo(countAfterSeed)
+        assertThat(repository.webLogs.value.first().id).isEqualTo(seedLog.id)
     }
 }

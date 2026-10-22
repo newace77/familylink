@@ -44,6 +44,9 @@
       position: fixed; inset: 0; background: #0f172a; color: #fff;
       display: flex; align-items: center; justify-content: center; z-index: 10;
     }
+    /* #gate의 display:flex는 UA의 [hidden]{display:none}보다 우선하므로,
+       hidden 속성만으로는 오버레이가 사라지지 않는다. 명시적으로 보완한다. */
+    #gate[hidden] { display: none; }
     #gate .box { text-align: center; padding: 20px; }
     #gate input {
       font-size: 28px; letter-spacing: 8px; text-align: center; width: 220px;

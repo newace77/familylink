@@ -164,6 +164,72 @@ class StayPointAndTrackersTest {
     }
 
     @Test
+    fun `BrowserContentFilter suppresses repeated evaluation of the same page regardless of elapsed time`() {
+        val firstLog = BrowserContentFilter.extractContent(
+            packageName = "com.android.chrome",
+            urlCandidate = "m.naver.com/home",
+            titleCandidate = "NAVER",
+            isUrlBarFocused = false,
+            nowMillis = 12_000L,
+            lastLog = null
+        )
+        assertThat(firstLog).isNotNull()
+
+        // 같은 페이지가 열려 있는 동안의 늦은 창 이벤트(3초 초과)도 새 기록이 아니어야 한다
+        val staleDuplicate = BrowserContentFilter.extractContent(
+            packageName = "com.android.chrome",
+            urlCandidate = "https://m.naver.com/home",
+            titleCandidate = "NAVER",
+            isUrlBarFocused = false,
+            nowMillis = 15_000L,
+            lastLog = firstLog
+        )
+        assertThat(staleDuplicate).isNull()
+
+        // 훨씬 많은 시간이 지나도 같은 페이지가 유지 중이면 새 기록을 만들지 않는다
+        val muchLaterDuplicate = BrowserContentFilter.extractContent(
+            packageName = "com.android.chrome",
+            urlCandidate = "https://m.naver.com/home",
+            titleCandidate = "NAVER",
+            isUrlBarFocused = false,
+            nowMillis = 900_000L,
+            lastLog = firstLog
+        )
+        assertThat(muchLaterDuplicate).isNull()
+
+        // 다른 URL을 거쳐 다시 열면 새로 기록한다
+        val navigatedAway = BrowserContentFilter.extractContent(
+            packageName = "com.android.chrome",
+            urlCandidate = "https://mail.google.com/mail/u/0",
+            titleCandidate = "Gmail",
+            isUrlBarFocused = false,
+            nowMillis = 905_000L,
+            lastLog = firstLog
+        )
+        assertThat(navigatedAway).isNotNull()
+
+        // YouTube도 같은 영상 유지 중엔 중복 기록하지 않는다
+        val youtubeFirst = BrowserContentFilter.extractContent(
+            packageName = "com.google.android.youtube",
+            urlCandidate = null,
+            titleCandidate = "[Shorts] 중학생 필수 영단어 50개 요약",
+            isUrlBarFocused = false,
+            nowMillis = 1_000_000L,
+            lastLog = navigatedAway
+        )
+        assertThat(youtubeFirst).isNotNull()
+        val youtubeDuplicate = BrowserContentFilter.extractContent(
+            packageName = "com.google.android.youtube",
+            urlCandidate = null,
+            titleCandidate = "[Shorts] 중학생 필수 영단어 50개 요약",
+            isUrlBarFocused = false,
+            nowMillis = 1_500_000L,
+            lastLog = youtubeFirst
+        )
+        assertThat(youtubeDuplicate).isNull()
+    }
+
+    @Test
     fun `TamperGuardDetector detects Settings accessibility and device admin tampering`() {
         val safeSettings = TamperGuardDetector.inspectWindow(
             packageName = "com.android.settings",

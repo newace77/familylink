@@ -20,7 +20,9 @@ class ChildMonitorController(
     private val _activeLockState = MutableStateFlow(LockDecision(isBlocked = false))
     val activeLockState: StateFlow<LockDecision> = _activeLockState.asStateFlow()
 
-    private var lastWebLog: WebContentLog? = null
+    // 접근성 서비스 재시작 시에도 Cloud/로컬 저장소의 최신 웹 로그를 이어받아
+    // 열려 있던 페이지의 재평가(중복 기록)를 막는다. 웹 로그 목록은 최신순 정렬이다.
+    private var lastWebLog: WebContentLog? = repository.webLogs.value.firstOrNull()
 
     fun onForegroundWindowEvaluated(
         packageName: String,
