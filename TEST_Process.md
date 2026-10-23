@@ -151,3 +151,30 @@ cd web-dashboard && python3 -m http.server 8080
 > **증빙(10-23)**: `/tmp/child-lock.png`(자녀 즉시잠금), `/tmp/child-unlock.png`(보너스 해제),
 > `/tmp/pp-alert*.png`(알림 센터), `/tmp/ch-naver2.png`(자녀 Chrome m.naver.com),
 > `/tmp/alerts.json`·`/tmp/weblogs.json`(Firestore REST 검증 원문)
+
+### 이슈 5 수정 기록 (2026-10-23, 견고성 픽스 — TDD)
+
+**결함 특성**: 플래키(3회째 재현 실패) → 단일 근본 원인 확정 대신 실패 경로를 관측·보강하는 견고성 설계.
+
+**관측된 근본 원인 시그니처** (부모 앱 재설치 직후 logcat):
+- `GoogleApiManager: SecurityException: Unknown calling package name 'com.google.android.gms'` — 재설치 직후
+  Firestore 쓰기 Task가 즉시 실패할 수 있으며, 기존 fire-and-forget `.set()`은 이 실패를 조용히 삼켰다.
+- `FireStore OnlineStateTracker: Could not reach Cloud Firestore backend ...` — 백엔드 연결 지연 구간에서도 동일.
+- 이 실패 구간에 리스너 스냅샷(이전 서버 값)이 도착하면 UI까지 변경 이전 상태로 되돌려진다(이슈 5 재현).
+
+**수정 내용 (TDD, RED→GREEN)**:
+1. `core-data/src/main/kotlin/com/familylink/data/FieldEchoGuard.kt` + `FieldEchoGuardTest` 5 케이스(`EchoGuardTest`):
+   대기 중(pending) 로컬 쓰기의 의도값과 다른 서버 스냅샷 적용을 거부한다 — 실패·지연 시 리스너가
+   UI를 되돌리는 현상 방지. 쓰기 ack 성공 시 pending 해제, 실패 시 유지, 연속 쓰기는 최신 의도 기준.
+2. `FirebaseFamilySyncRepository`:
+   - `writesScope`(IO + SupervisorJob)로 `writePolicy`/`writeSafeZones`를 ack + 지수 백오프 재시도
+     (0.5/1/2s) 실행, 최종 실패 시 `Log.w`(FamilySyncRepo) 기록.
+   - `applyRootDocument`의 POLICY·SAFE_ZONES 적용 전 `echoGuard.shouldApplyServerUpdate` 검사.
+   - deviceHealth는 기존 경로 유지(자녀 기기 쓰기, 충돌 모델 상이).
+
+**실기기 검증 (2026-10-23)**: 수정 APK 재설치 후 안심존 추가 4회(fixcheckzone·cyc1·cyc2cyccyc23·cyc3) +
+삭제 3회 → **7/7 모두 Firestore 구면 반영**(REST 즉시 교차확인), UI·대시보드(`안심존 3곳`) 일치,
+stale-skip 로그 0건. 어제 재현된 "삭제 미반영 + UI 되돌림"은 재현되지 않음.
+
+> **증빙(이슈 5 수정)**: `/tmp/vz*.xml`(uiautomator dump), `/tmp/fam-cy3.json`(REST 원문),
+> GoogleApiManager SecurityException 로그(부모 앱 재설치 직후, 21:34:37)

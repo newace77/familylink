@@ -16,10 +16,16 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import android.util.Log
 import org.json.JSONObject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -38,6 +44,10 @@ class FirebaseFamilySyncRepository(
     private val db: FirebaseFirestore,
     private val pairingStore: FamilyPairingStore
 ) : FamilySyncRepository {
+
+    companion object {
+        private const val TAG = "FamilySyncRepo"
+    }
 
     private val seedPolicy = DemoScenarioSeed.defaultPolicy()
 
@@ -75,6 +85,13 @@ class FirebaseFamilySyncRepository(
         _deviceHealth.value.totalUsedMinutesToday / _policy.value.alertIntervalMinutes.coerceAtLeast(1)
 
     private val listeners = mutableListOf<ListenerRegistration>()
+
+    /**
+     * Issue 5 견고성: 정책·안심존 쓰기의 ack 확인/재시도를 담당하는 독립 스코프.
+     * UI 쓰레드를 막지 않으면서 실패한 set을 재시도한다.
+     */
+    private val writesScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val echoGuard = FieldEchoGuard()
 
     init {
         // 저장된 코드가 있으면(부모가 코드 생성 후 재시작, 또는 자녀가 연동 후 재시작)
@@ -141,8 +158,12 @@ class FirebaseFamilySyncRepository(
         runCatching {
             data[FirestoreSchema.POLICY] as? String
         }.getOrNull()?.let { raw ->
-            runCatching { ModelJson.policyFromJson(JSONObject(raw)) }.onSuccess { parsed ->
-                _policy.value = parsed
+            if (!echoGuard.shouldApplyServerUpdate(FIELD_POLICY, raw)) {
+                Log.w(TAG, "skip stale policy snapshot while parent write is pending")
+            } else {
+                runCatching { ModelJson.policyFromJson(JSONObject(raw)) }.onSuccess { parsed ->
+                    _policy.value = parsed
+                }
             }
         }
         runCatching {
@@ -155,8 +176,12 @@ class FirebaseFamilySyncRepository(
         runCatching {
             data[FirestoreSchema.SAFE_ZONES] as? String
         }.getOrNull()?.let { raw ->
-            runCatching { ModelJson.safeZonesFromJson(org.json.JSONArray(raw)) }.onSuccess { parsed ->
-                _safeZones.value = parsed
+            if (!echoGuard.shouldApplyServerUpdate(FIELD_SAFE_ZONES, raw)) {
+                Log.w(TAG, "skip stale safeZones snapshot while parent write is pending")
+            } else {
+                runCatching { ModelJson.safeZonesFromJson(org.json.JSONArray(raw)) }.onSuccess { parsed ->
+                    _safeZones.value = parsed
+                }
             }
         }
         val paired = data[FirestoreSchema.PAIRED] as? Map<*, *>
@@ -251,8 +276,8 @@ class FirebaseFamilySyncRepository(
     private fun writePolicy() {
         val code = familyCode ?: return
         val json = ModelJson.policyToJson(_policy.value).toString()
-        db.document("${FirestoreSchema.FAMILIES}/$code")
-            .set(mapOf(FirestoreSchema.POLICY to json), SetOptions.merge())
+        echoGuard.onLocalWriteQueued(FIELD_POLICY, json)
+        writeRootFieldWithRetry(code, FIELD_POLICY, json)
     }
 
     // ---------- 자녀 측 기록 ----------
@@ -287,8 +312,35 @@ class FirebaseFamilySyncRepository(
     private fun writeSafeZones() {
         val code = familyCode ?: return
         val json = ModelJson.safeZonesToJson(_safeZones.value).toString()
-        db.document("${FirestoreSchema.FAMILIES}/$code")
-            .set(mapOf(FirestoreSchema.SAFE_ZONES to json), SetOptions.merge())
+        echoGuard.onLocalWriteQueued(FIELD_SAFE_ZONES, json)
+        writeRootFieldWithRetry(code, FIELD_SAFE_ZONES, json)
+    }
+
+    /**
+     * Issue 5 견고성: fire-and-forget set 대신 ack + 지수 백오프 재시도(0.5/1/2s).
+     * 마지막 시도까지 실패하면 로그만 남기고 로컬 의도(echoGuard pending)는 유지해
+     * 리스너의 stale 스냅샷이 UI를 되돌리지 않게 한다.
+     */
+    private fun writeRootFieldWithRetry(code: String, fieldKey: String, json: String) {
+        writesScope.launch {
+            val backoffMillis = longArrayOf(0, 500, 1_000, 2_000)
+            var success = false
+            for (attempt in backoffMillis.indices) {
+                if (backoffMillis[attempt] > 0) delay(backoffMillis[attempt])
+                val task = db.document("${FirestoreSchema.FAMILIES}/$code")
+                    .set(mapOf(fieldKey to json), SetOptions.merge())
+                val result = runCatching { task.awaitTask() }
+                if (result.isSuccess) {
+                    success = true
+                    break
+                }
+                Log.w(TAG, "write $fieldKey attempt=${attempt + 1} failed: ${result.exceptionOrNull()?.message}")
+            }
+            echoGuard.onLocalWriteResult(fieldKey, success)
+            if (!success) {
+                Log.e(TAG, "write $fieldKey permanently failed after retries; keeping local intent")
+            }
+        }
     }
 
     override fun recordWebContentLog(log: WebContentLog) {
