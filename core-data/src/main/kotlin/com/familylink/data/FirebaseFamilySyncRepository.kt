@@ -107,6 +107,8 @@ class FirebaseFamilySyncRepository(
         syncedCode = familyCode
         this.familyCode = familyCode
         pairingStore.save(familyCode)
+        // Issue 6: 실제 가족 구독이 시작되면 데모 시드 알림은 더 이상 표시하지 않는다.
+        _alerts.update { AlertListOps.removeDemoAlerts(it) }
         val rootPath = "${FirestoreSchema.FAMILIES}/$familyCode"
 
         listeners += db.document(rootPath).addSnapshotListener { snapshot, _ ->
@@ -120,7 +122,12 @@ class FirebaseFamilySyncRepository(
                     ModelJson.alertFromJson(JSONObject(doc.getString(FirestoreSchema.DATA)))
                 }.getOrNull()
             }
-            _alerts.update { SyncListMerger.merge(it, items) { a -> a.alertId } }
+            // Issue 6: 병합 값에 데모 시드가 남아 있으면 함께 제거하고 최신순을 유지한다.
+            _alerts.update {
+                AlertListOps.sortedNewestFirst(
+                    AlertListOps.removeDemoAlerts(SyncListMerger.merge(it, items) { a -> a.alertId })
+                )
+            }
         }
         listeners += listenCollection(rootPath + "/" + FirestoreSchema.WEB_LOGS, alertsLimit = 200) { snapshots ->
             val items = snapshots.mapNotNull { doc ->
@@ -368,7 +375,9 @@ class FirebaseFamilySyncRepository(
     }
 
     override fun emitAlert(alert: ParentAlert) {
-        _alerts.update { current -> SyncListMerger.merge(current, listOf(alert)) { it.alertId } }
+        _alerts.update { current ->
+            AlertListOps.sortedNewestFirst(AlertListOps.removeDemoAlerts(SyncListMerger.merge(current, listOf(alert)) { it.alertId }))
+        }
         upsertCollectionItem(FirestoreSchema.ALERTS, alert.alertId, ModelJson.alertToJson(alert))
     }
 

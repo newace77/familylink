@@ -178,3 +178,23 @@ stale-skip 로그 0건. 어제 재현된 "삭제 미반영 + UI 되돌림"은 �
 
 > **증빙(이슈 5 수정)**: `/tmp/vz*.xml`(uiautomator dump), `/tmp/fam-cy3.json`(REST 원문),
 > GoogleApiManager SecurityException 로그(부모 앱 재설치 직후, 21:34:37)
+
+### 이슈 6 수정 기록 (2026-10-23, 알림 시드 정렬 — TDD)
+
+**원인 확정**: `DemoScenarioSeed.defaultAlerts()`가 앱 프로세스 시작마다 `nowMillis - 5/50/70분`으로
+재생성되므로 재시작할 때마다 시드 3장이 "방금 발생" 알림처럼 최상단에 위치하고, 컬렉션 리스너 병합은
+incoming 우선이라 시드가 영구적으로 위에 유지됐다(재시작마다 카드 시각이 함께 이동하는 현상 관찰과 일치).
+
+**수정 내용 (TDD, RED→GREEN)**:
+1. `SeedAlertIds`(결정적 시드 id 3종) + `AlertListOps`(순수 로직: 시드 제거 + 최신순 정렬) 추가.
+2. `FirebaseFamilySyncRepository`:
+   - `startSync` 진입 시 실제 가족 구독 시작과 함께 기존 시드 알림 제거.
+   - 알림 컬렉션 리스너 병합 → 제거 → 최신순 정렬 파이프라인.
+   - `emitAlert` Directions 같은 파이프라인 적용으로 발생 후에도 정렬 유지.
+3. `AlertListOpsTest` 4 케이스(시드 제거, 재부상 방지, emit 후 정렬 유지, 파이프라인 순서).
+
+**실기기 검증 (2026-10-23 부모 앱 재시작)**: 재시작 직후 알림 상단 카드가 실제 Firestore 알림
+(180분 22:27 > 150분 22:07 > 120분 21:27 … 전날 00:28) 최신순으로 구성되고, 데모 시드 지문
+(역삼초 앞 GS25 / 하원하여) 문구 0건 — 시드 혼입 소멸. `/tmp/alert66~68.xml`, `/tmp/alert-fixed.png`.
+
+> **증빙(이슈 6 수정)**: `/tmp/alert66~68.xml`, `/tmp/alert-fixed.png`

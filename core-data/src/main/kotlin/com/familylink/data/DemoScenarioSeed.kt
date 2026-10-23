@@ -253,7 +253,7 @@ object DemoScenarioSeed {
 
     fun defaultAlerts(nowMillis: Long = System.currentTimeMillis()): List<ParentAlert> = listOf(
         ParentAlert(
-            alertId = "alert-milestone-60",
+            alertId = SeedAlertIds.MILESTONE_60,
             type = AlertType.USAGE_MILESTONE,
             title = "⏰ 자녀 스마트폰 사용 60분 경과 (30분 주기 알림)",
             message = "현재 위치: 역삼초 앞 GS25 편의점 | 최근 30분: YouTube 30분, Chrome 10분 사용 중",
@@ -262,7 +262,7 @@ object DemoScenarioSeed {
             milestoneMinutes = 60
         ),
         ParentAlert(
-            alertId = "alert-zone-exit-academy",
+            alertId = SeedAlertIds.ZONE_EXIT_ACADEMY,
             type = AlertType.SAFE_ZONE_EXIT,
             title = "🚶 안심존 이탈: 대치동 최상위 수학학원",
             message = "민준(초6)이 '대치동 최상위 수학학원'에서 하원하여 이동 중입니다.",
@@ -270,7 +270,7 @@ object DemoScenarioSeed {
             placeName = "대치동 최상위 수학학원"
         ),
         ParentAlert(
-            alertId = "alert-milestone-30",
+            alertId = SeedAlertIds.MILESTONE_30,
             type = AlertType.USAGE_MILESTONE,
             title = "⏰ 자녀 스마트폰 사용 30분 경과 (30분 주기 알림)",
             message = "현재 위치: 대치동 최상위 수학학원 | 최근 30분: EBS 중학 강의 15분, Chrome 15분 사용",
